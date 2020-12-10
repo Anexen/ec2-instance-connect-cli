@@ -1,0 +1,35 @@
+#!/bin/bash
+
+set -eu
+
+SSH_USER=$(echo "${!#}" | cut -f1 -d@)
+INSTANCE_ID=$(echo "${!#}" | cut -f2 -d@ -s)
+
+EXTRA_SSH_ARGS="${@:1:$#-1}"
+
+if [[ -z "${INSTANCE_ID}" ]]; then
+    INSTANCE_ID="${SSH_USER}"
+    SSH_USER=ec2-user
+fi
+
+INSTANCE_INFO=$(aws ec2 describe-instances \
+    --instance-ids "${INSTANCE_ID}" \
+    --query "Reservations[0].Instances[0].[Placement.AvailabilityZone,PublicIpAddress]" \
+    --output text)
+
+AVAILABILITY_ZONE=$(echo "${INSTANCE_INFO}" | cut -f1)
+PUBLIC_IP_ADDRESS=$(echo "${INSTANCE_INFO}" | cut -f2 -s)
+
+TEMP_FILE=$(mktemp -u --suffix=".${RANDOM}")
+
+ssh-keygen -t rsa -b 4096 -f "${TEMP_FILE}" -N "" > /dev/null
+
+aws ec2-instance-connect send-ssh-public-key \
+    --instance-id "${INSTANCE_ID}" \
+    --ssh-public-key "file://${TEMP_FILE}.pub" \
+    --instance-os-user "${SSH_USER}" \
+    --availability-zone "${AVAILABILITY_ZONE}" > /dev/null
+
+exec ssh ${EXTRA_SSH_ARGS} \
+    -i "${TEMP_FILE}" \
+    "${SSH_USER}@${PUBLIC_IP_ADDRESS}"
