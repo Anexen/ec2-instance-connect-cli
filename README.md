@@ -6,6 +6,15 @@
  - awscli
  - openssh (for ssh-keygen utility)
 
+# Installation:
+
+Just copy `mssh` script into your `PATH`.
+
+```bash
+$ curl -o ~/.local/bin/mssh -L https://raw.githubusercontent.com/Anexen/ec2-instance-connect-cli/main/mssh \
+    && chmod +x ~/.local/bin/mssh
+```
+
 # Usage:
 
 ```

@@ -17,6 +17,11 @@ INSTANCE_INFO=$(aws ec2 describe-instances \
     --query "Reservations[0].Instances[0].[Placement.AvailabilityZone,PublicIpAddress]" \
     --output text)
 
+if [[ -z "${INSTANCE_INFO}" || "${INSTANCE_INFO}" = 'None' ]]; then
+    echo "The instance ${INSTANCE_ID} was not found"
+    exit 1
+fi
+
 AVAILABILITY_ZONE=$(echo "${INSTANCE_INFO}" | cut -f1)
 PUBLIC_IP_ADDRESS=$(echo "${INSTANCE_INFO}" | cut -f2 -s)
 
