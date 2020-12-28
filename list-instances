@@ -90,7 +90,7 @@ __args+=('--output' "${__output_format}")
 __out=$(aws ec2 describe-instances "${__args[@]}")
 
 if [[ "${__output_format}" == 'table' ]]; then
-    __out=$(echo "${__out}" | tail -n +3 | sed '2s/_._/   /g')
+    __out=$(echo "${__out}" | tail -n +3 | sed 's/_[0-9]_/   /g')
 fi
 
 echo "${__out}"
