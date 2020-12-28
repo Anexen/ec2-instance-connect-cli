@@ -4,6 +4,17 @@ set -eu
 
 EC2_METADATA_ENDPOINT=169.254.169.254
 
+__help=$(cat <<EOF
+Usage: list-instances [--vpc-id VPC_ID] [--env ENV] [--subsystem SUBSYSTEM] [--component COMPONENT] [--output OUTPUT]
+
+Special VPC_ID values:
+    - 'default': use default VPC
+    - 'current': use VPC of EC2 instance
+
+OUTPUT options are the same as for the AWS CLI.
+EOF
+)
+
 __output_format=table
 
 __query=$(cat <<EOF
@@ -11,7 +22,7 @@ Reservations[].Instances[].{
    _1_InstanceId: InstanceId,
    _2_PublicIP: PublicIpAddress,
    _3_PrivateIP: PrivateIpAddress,
-   _5_Subsystem: Tags[?Key==\`Name\`]|[0].Value,
+   _4_Name: Tags[?Key==\`Name\`]|[0].Value,
    _5_Subsystem: Tags[?Key==\`Subsystem\`]|[0].Value,
    _6_Component: Tags[?Key==\`Component\`]|[0].Value,
    _7_ASG: Tags[?Key==\`aws:autoscaling:groupName\`]|[0].Value
@@ -21,17 +32,27 @@ EOF
 
 __filters=('Name=instance-state-name,Values=running')
 
+default_vpc () {
+    aws ec2 describe-vpcs --filters Name=isDefault,Values=true --query "Vpcs[0].VpcId" --output=text
+}
+
+current_vpc () {
+    ec2_instance_mac=$(curl "http://${EC2_METADATA_ENDPOINT}/latest/meta-data/mac" 2>/dev/null)
+    curl "http://${EC2_METADATA_ENDPOINT}/latest/meta-data/network/interfaces/macs/${ec2_instance_mac}/vpc-id" 2>/dev/null
+}
+
 while [[ "$#" -gt 0 ]]; do
     case $1 in
         --vpc-id)
             vpc_id="$2"
             if [[ "${vpc_id}" == 'current' ]]; then
                 if ping -c 1 "${EC2_METADATA_ENDPOINT}" &> /dev/null; then
-                    ec2_instance_mac=$(curl "http://${EC2_METADATA_ENDPOINT}/latest/meta-data/mac" 2>/dev/null)
-                    vpc_id=$(curl "http://${EC2_METADATA_ENDPOINT}/latest/meta-data/network/interfaces/macs/${ec2_instance_mac}/vpc-id" 2>/dev/null)
+                    vpc_id=$(current_vpc)
                 else
-                    vpc_id=$(aws ec2 describe-vpcs --filters Name=isDefault,Values=true --query "Vpcs[0].VpcId" --output=text)
+                    vpc_id=$(default_vpc)
                 fi
+            elif [[ "${vpc_id}" == 'default' ]]; then
+                vpc_id=$(default_vpc)
             fi
             __filters+=("Name=vpc-id,Values=${vpc_id}")
             shift
@@ -48,8 +69,13 @@ while [[ "$#" -gt 0 ]]; do
             __output_format="$2"
             shift
             ;;
+        --help)
+            echo "${__help}"
+            exit 0
+            ;;
         *)
             echo "Unknown parameter: $1"
+            echo "${__help}"
             exit 1
             ;;
     esac
