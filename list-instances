@@ -11,9 +11,10 @@ Reservations[].Instances[].{
    _1_InstanceId: InstanceId,
    _2_PublicIP: PublicIpAddress,
    _3_PrivateIP: PrivateIpAddress,
-   _4_Name: Tags[?Key=='Name']|[0].Value,
-   _5_Subsystem: Tags[?Key=='Subsystem'].Value|[0].Value,
-   _6_Component: Tags[?Key=='Component'].Value|[0].Value
+   _5_Subsystem: Tags[?Key==\`Name\`]|[0].Value,
+   _5_Subsystem: Tags[?Key==\`Subsystem\`]|[0].Value,
+   _6_Component: Tags[?Key==\`Component\`]|[0].Value,
+   _7_ASG: Tags[?Key==\`aws:autoscaling:groupName\`]|[0].Value
 }
 EOF
 )
