@@ -1,0 +1,69 @@
+#!/bin/bash
+
+set -eu
+
+EC2_METADATA_ENDPOINT=169.254.169.254
+
+__output_format=table
+
+__query=$(cat <<EOF
+Reservations[].Instances[].{
+   _1_InstanceId: InstanceId,
+   _2_PublicIP: PublicIpAddress,
+   _3_PrivateIP: PrivateIpAddress,
+   _4_Name: Tags[?Key=='Name']|[0].Value,
+   _5_Subsystem: Tags[?Key=='Subsystem'].Value|[0].Value,
+   _6_Component: Tags[?Key=='Component'].Value|[0].Value
+}
+EOF
+)
+
+__filters=('Name=instance-state-name,Values=running')
+
+while [[ "$#" -gt 0 ]]; do
+    case $1 in
+        --vpc-id)
+            vpc_id="$2"
+            if [[ "${vpc_id}" == 'current' ]]; then
+                if ping -c 1 "${EC2_METADATA_ENDPOINT}" &> /dev/null; then
+                    ec2_instance_mac=$(curl "http://${EC2_METADATA_ENDPOINT}/latest/meta-data/mac" 2>/dev/null)
+                    vpc_id=$(curl "http://${EC2_METADATA_ENDPOINT}/latest/meta-data/network/interfaces/macs/${ec2_instance_mac}/vpc-id" 2>/dev/null)
+                else
+                    vpc_id=$(aws ec2 describe-vpcs --filters Name=isDefault,Values=true --query "Vpcs[0].VpcId" --output=text)
+                fi
+            fi
+            __filters+=("Name=vpc-id,Values=${vpc_id}")
+            shift
+            ;;
+        --subsystem)
+            __filters+=("Name=tag:Subsystem,Values=$2")
+            shift
+            ;;
+        --component)
+            __filters+=("Name=tag:Component,Values=$2")
+            shift
+            ;;
+        --output)
+            __output_format="$2"
+            shift
+            ;;
+        *)
+            echo "Unknown parameter: $1"
+            exit 1
+            ;;
+    esac
+    shift
+done
+
+__args=()
+__args+=('--query' "${__query}")
+__args+=('--filters' "${__filters[@]}")
+__args+=('--output' "${__output_format}")
+
+__out=$(aws ec2 describe-instances "${__args[@]}")
+
+if [[ "${__output_format}" == 'table' ]]; then
+    __out=$(echo "${__out}" | tail -n +3 | sed '2s/_._/   /g')
+fi
+
+echo "${__out}"
