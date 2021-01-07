@@ -36,9 +36,17 @@ default_vpc () {
     aws ec2 describe-vpcs --filters Name=isDefault,Values=true --query "Vpcs[0].VpcId" --output=text
 }
 
+check_metadata_endpoint() {
+    if ! curl --silent --connect-timeout 1 "http://${EC2_METADATA_ENDPOINT}/latest" | grep 'meta-data' ; then
+        echo "AWS EC2 Instance Metadata service is not available." 1>&2;
+        exit 1
+    fi
+}
+
 current_vpc () {
-    ec2_instance_mac=$(curl "http://${EC2_METADATA_ENDPOINT}/latest/meta-data/mac" 2>/dev/null)
-    curl "http://${EC2_METADATA_ENDPOINT}/latest/meta-data/network/interfaces/macs/${ec2_instance_mac}/vpc-id" 2>/dev/null
+    check_metadata_endpoint
+    ec2_instance_mac=$(curl --no-progress-meter --connect-timeout 1 "http://${EC2_METADATA_ENDPOINT}/latest/meta-data/mac")
+    curl --no-progress-meter --connect-timeout 1 "http://${EC2_METADATA_ENDPOINT}/latest/meta-data/network/interfaces/macs/${ec2_instance_mac}/vpc-id"
 }
 
 while [[ "$#" -gt 0 ]]; do
@@ -46,11 +54,7 @@ while [[ "$#" -gt 0 ]]; do
         --vpc-id)
             vpc_id="$2"
             if [[ "${vpc_id}" == 'current' ]]; then
-                if ping -c 1 "${EC2_METADATA_ENDPOINT}" &> /dev/null; then
-                    vpc_id=$(current_vpc)
-                else
-                    vpc_id=$(default_vpc)
-                fi
+                vpc_id=$(current_vpc)
             elif [[ "${vpc_id}" == 'default' ]]; then
                 vpc_id=$(default_vpc)
             fi
