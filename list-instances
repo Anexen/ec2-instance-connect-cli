@@ -61,6 +61,10 @@ while [[ "$#" -gt 0 ]]; do
             __filters+=("Name=vpc-id,Values=${vpc_id}")
             shift
             ;;
+        --env)
+            __filters+=("Name=tag:Environment,Values=$2")
+            shift
+            ;;
         --subsystem)
             __filters+=("Name=tag:Subsystem,Values=$2")
             shift
