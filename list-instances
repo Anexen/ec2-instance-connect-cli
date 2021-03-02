@@ -37,7 +37,7 @@ default_vpc () {
 }
 
 check_metadata_endpoint() {
-    if ! curl --silent --connect-timeout 1 "http://${EC2_METADATA_ENDPOINT}/latest" | grep 'meta-data' ; then
+    if ! curl --silent --connect-timeout 1 "http://${EC2_METADATA_ENDPOINT}/latest" | grep 'meta-data' &>/dev/null ; then
         echo "AWS EC2 Instance Metadata service is not available." 1>&2;
         exit 1
     fi
@@ -45,14 +45,14 @@ check_metadata_endpoint() {
 
 current_vpc () {
     check_metadata_endpoint
-    ec2_instance_mac=$(curl --no-progress-meter --connect-timeout 1 "http://${EC2_METADATA_ENDPOINT}/latest/meta-data/mac")
-    curl --no-progress-meter --connect-timeout 1 "http://${EC2_METADATA_ENDPOINT}/latest/meta-data/network/interfaces/macs/${ec2_instance_mac}/vpc-id"
+    ec2_instance_mac=$(curl --silent --connect-timeout 1 "http://${EC2_METADATA_ENDPOINT}/latest/meta-data/mac")
+    curl --silent --connect-timeout 1 "http://${EC2_METADATA_ENDPOINT}/latest/meta-data/network/interfaces/macs/${ec2_instance_mac}/vpc-id"
 }
 
 while [[ "$#" -gt 0 ]]; do
     case $1 in
         --vpc-id)
-            vpc_id="$2"
+            vpc_id="${2:?VPC_ID is not set}"
             if [[ "${vpc_id}" == 'current' ]]; then
                 vpc_id=$(current_vpc)
             elif [[ "${vpc_id}" == 'default' ]]; then
@@ -62,19 +62,19 @@ while [[ "$#" -gt 0 ]]; do
             shift
             ;;
         --env)
-            __filters+=("Name=tag:Environment,Values=$2")
+            __filters+=("Name=tag:Environment,Values=${2:?Environment name is not set}")
             shift
             ;;
         --subsystem)
-            __filters+=("Name=tag:Subsystem,Values=$2")
+            __filters+=("Name=tag:Subsystem,Values=${2:?Subsystem name is not setn}")
             shift
             ;;
         --component)
-            __filters+=("Name=tag:Component,Values=$2")
+            __filters+=("Name=tag:Component,Values=${2:?Component name is not set}")
             shift
             ;;
         --output)
-            __output_format="$2"
+            __output_format="${2:-table}"
             shift
             ;;
         --help)
